@@ -2,16 +2,31 @@ class SEOCausal(CausalImpact):
     def __init__(self):
         super(CausalImpact, self).__init__()
     
-    def fit(self, int_time, start, end, 
-            test_set, dataset, alpha, 
-            events, seasons, btest, 
-            standardize):
+    def fit(int_time, start, end, distances, 
+            causal_input, alpha = 0.95, events_per_season = 1, 
+            seasons = 1, btest = 0, standardize = False):
         
+        distances = distances.append({'index':'TEST'}, ignore_index=True)
         
+        pvt_longer = causal_input.merge(distances['index'], how='inner', on=['page']).drop_duplicates().sort_values('date').reset_index(drop=True)
         
+        raw_ts = pvt_longer.pivot_table(index='date', columns='page', values='value', aggfunc='sum').reset_index()
         
+        partition1 = raw_ts[raw_ts.date == '2021-11-12'].index.values.astype(int)[0]
         
+        partition2 = raw_ts[raw_ts.date == '2021-11-24'].index.values.astype(int)[0]
         
+        pre_period = [0,  partition1 - 1]
+        
+        post_period = [partition1, 324]
+        
+        final = raw_ts.[['value','page']]
+        
+        ci = CausalImpact(final, pre_period, post_period, alpha=0.05, model_args = {'nseasons': 14,'season_duration': 2})
+
+        print(ci.summary())
+
+        ci.plot()
         
         return 
     
@@ -57,6 +72,9 @@ class SEOCausal(CausalImpact):
             WIP
         """
         
+    def causal_input(testset=pd.DataFrame(), dataset=pd.DataFrame(), metric='impressions', ranks='date',
+                col='page', roll=2, outlier=1, scaling=True, min_test=1, min_data=1, metric2='sum'):
+
         testset.columns = testset.columns.str.lower()
         dataset.columns = dataset.columns.str.lower()
         col = col.lower()
@@ -127,7 +145,11 @@ class SEOCausal(CausalImpact):
         pvt_table = pvt_table[roll-1:]
 
         causal_control = pvt_table.melt(ignore_index=False).reset_index().sort_values(ranks).reset_index(drop=True)
+        
+        return causal_control
 
+    def distance(causal_control, col='page', ranks='date',scaling=True):
+        
         markets = {}
         for i in causal_control[col].unique():
             markets[i] = causal_control[causal_control[col] == i].sort_values(ranks).reset_index(drop=True)[['value']]
