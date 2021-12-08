@@ -57,7 +57,6 @@ class SEOCausal(CausalImpact):
             WIP
         """
         
-
         testset.columns = testset.columns.str.lower()
         dataset.columns = dataset.columns.str.lower()
         col = col.lower()
@@ -81,11 +80,16 @@ class SEOCausal(CausalImpact):
         
         test_tops = testcount[testcount[ranks] >= min_test].reset_index()
         
-        test_set = causal_input[causal_input[col].isin(test_tops[col])]
+        if metric2 == 'sum':
+            test_set =  causal_input[causal_input[col].isin(test_tops[col])]
+            test_set = test_set.groupby([ranks, col]).sum().sort_values(ranks, ascending=False).reset_index()
+        elif metric2 == 'mean':
+            test_set =  causal_input[causal_input[col].isin(test_tops[col])]
+            test_set = test_set.groupby([ranks, col]).mean().sort_values(ranks, ascending=False).reset_index()
             
         if outlier != 1:
             test_set_clean = pd.DataFrame()
-            for i in test_set[col]:
+            for i in test_tops[col].unique():
                 cutoff = test_set[test_set[col] == i].quantile(outlier)
                 temp = test_set[test_set[col] == i]
                 temp = temp[temp[metric] < cutoff[0]]
@@ -105,11 +109,15 @@ class SEOCausal(CausalImpact):
             raise ValueError('Supported aggregators are sum and mean')
         
         marketcount = causal_input.groupby([col]).count().sort_values(metric, ascending=False).reset_index()
+
+        if marketcount[marketcount[col] == 'TEST'][metric].max() <= min_data:
+            min_data = marketcount[marketcount[col] == 'TEST'][metric].max()
+        
+        assert marketcount[metric].max() >= min_data, 'min_data must be lower than the maximum number of observations in dataset'    
+        assert min_test >= min_data, 'Test observations have to be equal or higher than cutoff point'
         
         control_urls = marketcount[marketcount[ranks] >= min_data].reset_index()
-        
-        assert marketcount[metric].max() >= min_data, 'min_data must be lower than the maximum number of observations in dataset'
-        
+
         causal_control = causal_input.loc[causal_input[col].isin(control_urls[col]),]
 
         pvt_table = causal_control.pivot_table(index=ranks, columns=col, values=metric, aggfunc=metric2).reset_index().fillna(0).set_index(ranks)
@@ -121,11 +129,11 @@ class SEOCausal(CausalImpact):
         causal_control = pvt_table.melt(ignore_index=False).reset_index().sort_values(ranks).reset_index(drop=True)
 
         markets = {}
-        for i in causal_control[[col]][col].unique():
+        for i in causal_control[col].unique():
             markets[i] = causal_control[causal_control[col] == i].sort_values(ranks).reset_index(drop=True)[['value']]
-
+        
         distances = {}
-        for i in causal_control[[col]][col].unique():
+        for i in causal_control[col].unique():
             distances[i] = dtw.dtw(markets['TEST'], markets[i]).distance
             
         final = pd.DataFrame.from_dict(distances, orient='index', columns=['dist']).sort_values('dist', ascending=True)[1:].reset_index()
