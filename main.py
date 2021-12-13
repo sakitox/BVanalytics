@@ -2,39 +2,15 @@ class SEOCausal(CausalImpact):
     def __init__(self):
         super(CausalImpact, self).__init__()
     
-    def fit(int_time, start, end, distances, 
-            causal_input, alpha = 0.95, events_per_season = 1, 
-            seasons = 1, btest = 0, standardize = False):
-        
-        distances = distances.append({'index':'TEST'}, ignore_index=True)
-        
-        pvt_longer = causal_input.merge(distances['index'], how='inner', on=['page']).drop_duplicates().sort_values('date').reset_index(drop=True)
-        
-        raw_ts = pvt_longer.pivot_table(index='date', columns='page', values='value', aggfunc='sum').reset_index()
-        
-        partition1 = raw_ts[raw_ts.date == '2021-11-12'].index.values.astype(int)[0]
-        
-        partition2 = raw_ts[raw_ts.date == '2021-11-24'].index.values.astype(int)[0]
-        
-        pre_period = [0,  partition1 - 1]
-        
-        post_period = [partition1, 324]
-        
-        final = raw_ts.[['value','page']]
-        
-        ci = CausalImpact(final, pre_period, post_period, alpha=0.05, model_args = {'nseasons': 14,'season_duration': 2})
-
-        print(ci.summary())
-
-        ci.plot()
-        
-        return 
-    
-    def distance(testset=pd.DataFrame(), dataset=pd.DataFrame(), metric='str',
-                col='page', roll=2, outlier = 0.98, scaling=True, min_test, min_data, metric2='sum'):
+    def build(self, testset=pd.DataFrame(), dataset=pd.DataFrame(), metric='impressions', ranks='date',
+                col='page', roll=2, outlier=1, min_test=1, min_data=1, metric2='sum'):
 
         """
-        Builds a pd.DataFrame() object with the markets in dataset and their dtw distances in relation to testset
+        Builds a pd.DataFrame() by crossing two ranked -by dateime or else- unsorted and ungrouped datasets. 
+        One concontains all data observations in the experiment, it can contain many observations at same rank. 
+        The second one has a list of the test markets that underwent an experiment. 
+        The column names must match between the list and the markets in global data (temporary until permanent solution).
+        The resulting DataFrame is ready to be matched to its internal markets, see distance().
         ----
             testset: pd.DataFrame()
                 The test set markets, testset.col.name must match dataset.col.name
@@ -66,14 +42,11 @@ class SEOCausal(CausalImpact):
         Returns
         -------
             self: pd.DataFrame()
-                Contains the time warped distances sorted from shortest to largest between test and global datasets.
+                Contains a sorted and grouped dataset with all data points for the test set aggregated by rank under 'TEST' market, see distance()
         Raises
         ------
             WIP
         """
-        
-    def causal_input(testset=pd.DataFrame(), dataset=pd.DataFrame(), metric='impressions', ranks='date',
-                col='page', roll=2, outlier=1, scaling=True, min_test=1, min_data=1, metric2='sum'):
 
         testset.columns = testset.columns.str.lower()
         dataset.columns = dataset.columns.str.lower()
@@ -84,11 +57,11 @@ class SEOCausal(CausalImpact):
         if metric2 == 'sum':
             causal_input = dataset.groupby([ranks, col]).sum().sort_values(ranks, ascending=False).reset_index()
         elif metric2 == 'mean':
-            causal_input = causal_input.groupby([ranks, col]).mean().sort_values(ranks, ascending=False).reset_index()
+            causal_input = dataset.groupby([ranks, col]).mean().sort_values(ranks, ascending=False).reset_index()
         else:
             raise ValueError('Supported aggregators are sum and mean')
 
-        test_set = causal_input[causal_input[col].isin(pdp[col])]
+        test_set = causal_input[causal_input[col].isin(testset[col])]
         
         assert (test_set.iloc[1,:].all() != None)  & (test_set.iloc[0,:].all() != None), 'No markets match on test and data, check strings'
 
@@ -105,17 +78,19 @@ class SEOCausal(CausalImpact):
             test_set =  causal_input[causal_input[col].isin(test_tops[col])]
             test_set = test_set.groupby([ranks, col]).mean().sort_values(ranks, ascending=False).reset_index()
             
-        if outlier != 1:
-            test_set_clean = pd.DataFrame()
+        test_set_clean = pd.DataFrame()
+        if outlier < 1:
             for i in test_tops[col].unique():
                 cutoff = test_set[test_set[col] == i].quantile(outlier)
                 temp = test_set[test_set[col] == i]
                 temp = temp[temp[metric] < cutoff[0]]
                 test_set_clean = pd.concat([test_set_clean, temp], ignore_index=True)
-                test_set = test_set_clean
+            test_set = test_set_clean
 
             causal_input = causal_input[~causal_input[col].isin(testcount[col])]
             causal_input = pd.concat([causal_input, test_set], ignore_index=True).sort_values(ranks)
+        
+        test_items = causal_input[causal_input[col].isin(test_tops[col])]
         
         causal_input.loc[causal_input[col].isin(test_tops[col]), col] = 'TEST'
         
@@ -132,7 +107,7 @@ class SEOCausal(CausalImpact):
             min_data = marketcount[marketcount[col] == 'TEST'][metric].max()
         
         assert marketcount[metric].max() >= min_data, 'min_data must be lower than the maximum number of observations in dataset'    
-        assert min_test >= min_data, 'Test observations have to be equal or higher than cutoff point'
+        assert min_test <= min_data, 'Test observations have to be equal or higher than cutoff point'
         
         control_urls = marketcount[marketcount[ranks] >= min_data].reset_index()
 
@@ -140,23 +115,49 @@ class SEOCausal(CausalImpact):
 
         pvt_table = causal_control.pivot_table(index=ranks, columns=col, values=metric, aggfunc=metric2).reset_index().fillna(0).set_index(ranks)
 
-        pvt_table = pvt_table.rolling(roll).mean()
-
-        pvt_table = pvt_table[roll-1:]
+        if roll > 1:
+            pvt_table = pvt_table.rolling(roll).mean()
+            pvt_table = pvt_table[roll-1:]
 
         causal_control = pvt_table.melt(ignore_index=False).reset_index().sort_values(ranks).reset_index(drop=True)
         
+        causal_control
+        
         return causal_control
 
-    def distance(causal_control, col='page', ranks='date',scaling=True):
-        
+    
+    def distance(self, causal_control, col='page', ranks='date',scaling=True):
+
+        """
+        Builds a pd.DataFrame() by finding all the dynamic time warped distances of each internal market against the 'TEST' set generated using build(). 
+        ----
+            causal_control: pd.DataFrame()
+                The dataset built using build()
+            col: str
+                The column name for the markets where 'TEST' is found.
+            ranks: str
+                The column name that holds the ranking for the observations, defaults to date.
+                Accepts numerical and datetime ranking.
+            scaling = bool
+                Scaled distances max abs [1-0], defaults True.
+                Examples: sum if impressions, sessions, etc. and mean if position, users, etc.
+                
+        Returns
+        -------
+            self: pd.DataFrame()
+                Contains the time warped distances sorted from shortest to largest between test and global datasets.
+        Raises
+        ------
+            WIP
+        """
+
         markets = {}
         for i in causal_control[col].unique():
             markets[i] = causal_control[causal_control[col] == i].sort_values(ranks).reset_index(drop=True)[['value']]
         
         distances = {}
         for i in causal_control[col].unique():
-            distances[i] = dtw.dtw(markets['TEST'], markets[i]).distance
+            distances[i] = dtw.dtw(markets['TEST'], markets[i],open_end=True).distance
             
         final = pd.DataFrame.from_dict(distances, orient='index', columns=['dist']).sort_values('dist', ascending=True)[1:].reset_index()
 
@@ -166,7 +167,80 @@ class SEOCausal(CausalImpact):
             x_scaled = min_max_scaler.fit_transform(x.reshape(-1, 1))
             final.dist = x_scaled
         
+        final = final.rename({'index':col}, axis=1)
+        
         return  final
+    
+    
+    def fit(int_time, end, distances,agg,
+            build, alpha = 0.95, events_per_season = 1, 
+            seasons = 1, btest = 0, standardize = False):
+
+        """
+        Fits a causal impact model to the build() dataset using the controls defined by distance(), it is recommended to constrain the total markets in distance() to less than 100.
+        ----
+            causal_control: pd.DataFrame()
+                The dataset built using build()
+            col: str
+                The column name for the markets where 'TEST' is found.
+            ranks: str
+                The column name that holds the ranking for the observations, defaults to date.
+                Accepts numerical and datetime ranking.
+            scaling = bool
+                Scaled distances max abs [1-0], defaults True.
+                Examples: sum if impressions, sessions, etc. and mean if position, users, etc.
+                
+        Returns
+        -------
+            self: pd.DataFrame()
+                Contains the time warped distances sorted from shortest to largest between test and global datasets.
+        Raises
+        ------
+            WIP
+        """
+        
+        distances = distances.append({'page':'TEST'}, ignore_index=True)
+
+        pvt_longer = causal_input.merge(distances['page'], how='inner', on=['page']).sort_values('date').reset_index(drop=True)
+        
+        raw_ts = pvt_longer.pivot_table(index='date', columns='page', values='value', aggfunc=agg).reset_index()
+
+        partition1 = raw_ts[raw_ts.date == int_time].index.values[0].item()
+
+        partition2 = raw_ts[raw_ts.date == end].index.values[0].item()
+        
+        pre_period = [0,  partition1 - 1]
+        
+        post_period = [partition1, partition2]
+
+        final = raw_ts.sort_values('date').reset_index(drop=True)
+        
+        final = final.drop(['date'], axis=1)
+
+        print('Calculating Causal Impact....')
+        
+        ci = CausalImpact(final, pre_period, post_period, alpha=alpha, model_args = {'nseasons': events_per_season,'season_duration': seasons})
+
+        print(ci.summary())
+        print(ci.plot())
+        
+        bt_pre_period = [0,  partition1 - 1 - btest]
+        bt_post_period = [partition1 - btest, partition1 -1]
+        
+        if btest != 0:
+            print('')
+            print('')
+            print('')
+            print('Calculating Backtest...')
+            cibt = CausalImpact(final, bt_pre_period, bt_post_period, alpha=alpha, model_args = {'nseasons': events_per_season,'season_duration': seasons})
+        
+            print(cibt.summary())
+            print(cibt.plot())
+            
+            return ci, cibt
+
+        return ci
+        
         
     def Rtransform(self, testset, dataset, metric,  #To do
                   roll, nmarkets, min_test, min_data):
