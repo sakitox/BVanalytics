@@ -3,7 +3,7 @@ class SEOCausal(CausalImpact):
         super(CausalImpact, self).__init__()
     
     def build(self, testset=pd.DataFrame(), dataset=pd.DataFrame(), metric='impressions', ranks='date',
-                col='page', begin_data = None, roll=2, outlier=1, min_test=1, min_data=1, metric2='sum'):
+                col='page', begin_data = None, roll=2, outlier=1, min_test=1, min_data=1):
 
         """
         Builds a pd.DataFrame() by crossing two ranked -by dateime or else- unsorted and ungrouped datasets. 
@@ -53,34 +53,31 @@ class SEOCausal(CausalImpact):
         testset.columns = testset.columns.str.lower()
         dataset.columns = dataset.columns.str.lower()
         col = col.lower()
-        
+
         assert testset[col].name == testset[col].name, 'Column names must match for the matched markets'
-        
-        if type(metric) == str:
-            metric_dict = {metric : metric2}
-        elif type(metric) == dict:
+
+        if type(metric) == dict:
             metric_dict = metric
         else:
-            raise ValueError('Metric must be a string or a dictionary')
+            raise ValueError('Metric must be a dictionary with the metric name as key and the aggregation method as the value, e.g. { "clicks" : "sum" }')
 
-        
         causal_input = dataset.groupby([ranks, col]).agg(metric_dict).sort_values(ranks).reset_index()
 
         test_set = causal_input[causal_input[col].isin(testset[col])]
-        
+
         assert (test_set.iloc[1,:].all() != None)  & (test_set.iloc[0,:].all() != None), 'No markets match on test and data, check strings'
 
         testcount = test_set.groupby([col]).count().sort_values(ranks, ascending=False).reset_index()
-        
+
         assert testcount[ranks].max() >= min_test, 'min_test must be lower than the maximum number of observations in testset'
-        
+
         test_tops = testcount[testcount[ranks] >= min_test].reset_index() #to be expanded, same with row 106
-        
+
         test_set =  causal_input[causal_input[col].isin(test_tops[col])]
         test_set = test_set.groupby([ranks, col]).agg(metric_dict).sort_values(ranks).reset_index()
-            
+
         test_set_clean = pd.DataFrame()
-        
+
         if outlier < 1:
             for i in test_tops[col].unique():
                 cutoff = test_set[test_set[col] == i].quantile(outlier)
@@ -91,21 +88,21 @@ class SEOCausal(CausalImpact):
             test_set = test_set_clean
             causal_input = causal_input[~causal_input[col].isin(testcount[col])]
             causal_input = pd.concat([causal_input, test_set], ignore_index=True).sort_values(ranks).reset_index(drop=True)
-        
+
         test_items = causal_input[causal_input[col].isin(test_tops[col])]
-        
+
         causal_input.loc[causal_input[col].isin(test_tops[col]), col] = 'TEST'
-        
+
         causal_input = causal_input.groupby([ranks, col]).agg(metric_dict).sort_values(ranks).reset_index()
-        
+
         marketcount = causal_input.groupby([col]).count().sort_values(ranks, ascending=False).reset_index()
 
         if marketcount[marketcount[col] == 'TEST'][ranks].max() <= min_data:
             min_data = marketcount[marketcount[col] == 'TEST'][ranks].max()
-        
+
         assert marketcount[ranks].max() >= min_data, 'min_data must be lower than the maximum number of observations in dataset'    
         assert min_test <= min_data, 'Test observations have to be equal or higher than cutoff point'
-        
+
         control_urls = marketcount[marketcount[ranks] >= min_data].reset_index() #to be expanded, same with row 75
 
         causal_control = causal_input.loc[causal_input[col].isin(control_urls[col]),]
@@ -124,7 +121,7 @@ class SEOCausal(CausalImpact):
 
         if begin_data != None:
             causal_control = causal_control[causal_control.index >= begin_data]
-        
+            
         return causal_control.reset_index()
 
     
@@ -155,30 +152,44 @@ class SEOCausal(CausalImpact):
             WIP
         """
 
+        
         causal_control = causal_control[causal_control[ranks] < end_date]
         
+        total_time = 0
         final = {}
-        for j in causal_control.columns[~causal_control.columns.isin([col])]:
+        for j in causal_control.columns[~causal_control.columns.isin([col, ranks])]:
+            t_start_0 = time.time()
+            print(f"Starting distances for {j}")
+            print('')
             distances = {}
             temp = causal_control[[col, j]]
             for i in temp[col].unique():
                 distances[i] = dtw.dtw(causal_control[causal_control[col] == 'TEST'][j], causal_control[causal_control[col] == i][j],open_end=True).distance
-            
             final[j] = pd.DataFrame.from_dict(distances, orient='index', columns=['dist']).sort_values('dist', ascending=True)[1:].reset_index()
+            time_taken = time.time() - t_start_0
+            total_time += time_taken
+            print(f"Metric {j} completed. Time taken: {time_taken / 60:0.2f} minutes")
+            print('')
+        
 
         if scaling == True:
-            x = final.dist[:].values
-            min_max_scaler = preprocessing.MaxAbsScaler()
-            x_scaled = min_max_scaler.fit_transform(x.reshape(-1, 1))
-            final.dist = x_scaled
+            for key, value in final.items():
+                x = value.dist[:].values
+                min_max_scaler = preprocessing.MaxAbsScaler()
+                x_scaled = min_max_scaler.fit_transform(x.reshape(-1, 1))
+                final[key] = final[key].rename({'index':col}, axis=1)   
+                final[key].dist = x_scaled    
         
-        final = final.rename({'index':col}, axis=1)
+        if total_time > 3600:
+            print(f"All metrics complete. Total time: {total_time // 60:0.2f} h {total_time / 60:0.2f} mins")
+        else:
+            print(f"All metrics complete. Total time: {total_time / 60:0.2f} mins")
         
         return  final
     
     
     def fit(int_time, end, distances,agg,
-            build, alpha = 0.95, events_per_season = 1, 
+            causal_input, alpha = 0.95, events_per_season = 1, 
             seasons = 1, btest = 0, standardize = False):
 
         """
@@ -203,7 +214,7 @@ class SEOCausal(CausalImpact):
         ------
             WIP
         """
-        
+
         distances = distances.append({'page':'TEST'}, ignore_index=True)
 
         pvt_longer = causal_input.merge(distances['page'], how='inner', on=['page']).sort_values('date').reset_index(drop=True)
@@ -223,20 +234,23 @@ class SEOCausal(CausalImpact):
         final = final.drop(['date'], axis=1)
 
         print('Calculating Causal Impact....')
+        print('')
+        print('')
         
         ci = CausalImpact(final, pre_period, post_period, alpha=alpha, model_args = {'nseasons': events_per_season,'season_duration': seasons})
 
         print(ci.summary())
         print(ci.plot())
         
-        bt_pre_period = [0,  partition1 - 1 - btest]
-        bt_post_period = [partition1 - btest, partition1 -1]
+        bt_pre_period = [0,  partition1 - 1 -btest]
+        bt_post_period = [partition1 -btest, partition1 -1]
         
         if btest != 0:
             print('')
             print('')
-            print('')
             print('Calculating Backtest...')
+            print('')
+            print('')
             cibt = CausalImpact(final, bt_pre_period, bt_post_period, alpha=alpha, model_args = {'nseasons': events_per_season,'season_duration': seasons})
         
             print(cibt.summary())
