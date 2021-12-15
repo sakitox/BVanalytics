@@ -123,12 +123,12 @@ class SEOCausal(CausalImpact):
         causal_control.columns = ["_".join(a) for a in causal_control.columns.to_flat_index()]
 
         if begin_data != None:
-            causal_control = causal_control[causal_control[ranks] >= begin_data]
+            causal_control = causal_control[causal_control.index >= begin_data]
         
-        return causal_control
+        return causal_control.reset_index()
 
     
-    def distance(self, causal_control, end_date,  col='page', ranks='date',scaling=True):
+    def distance(self, causal_control, end_date,  col='page_', ranks='date',scaling=True):
 
         """
         Builds a pd.DataFrame() by finding all the dynamic time warped distances of each internal market against the 'TEST' set generated using build(). 
@@ -157,15 +157,14 @@ class SEOCausal(CausalImpact):
 
         causal_control = causal_control[causal_control[ranks] < end_date]
         
-        markets = {}
-        for i in causal_control[col].unique():
-            markets[i] = causal_control[causal_control[col] == i].sort_values(ranks).reset_index(drop=True)[['value']]
-        
-        distances = {}
-        for i in causal_control[col].unique():
-            distances[i] = dtw.dtw(markets['TEST'], markets[i],open_end=True).distance
+        final = {}
+        for j in causal_control.columns[~causal_control.columns.isin([col])]:
+            distances = {}
+            temp = causal_control[[col, j]]
+            for i in temp[col].unique():
+                distances[i] = dtw.dtw(causal_control[causal_control[col] == 'TEST'][j], causal_control[causal_control[col] == i][j],open_end=True).distance
             
-        final = pd.DataFrame.from_dict(distances, orient='index', columns=['dist']).sort_values('dist', ascending=True)[1:].reset_index()
+            final[j] = pd.DataFrame.from_dict(distances, orient='index', columns=['dist']).sort_values('dist', ascending=True)[1:].reset_index()
 
         if scaling == True:
             x = final.dist[:].values
