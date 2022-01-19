@@ -29,6 +29,7 @@ install_requires = [
     'matplotlib',
     'dtw-python',
     'sklearn'
+    'tf-causalimpact'
 ]
 tests_require = [
     'pytest',

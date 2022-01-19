@@ -1,9 +1,24 @@
+# Copyright Builtvisible
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
 class SEOCausal(CausalImpact):
     def __init__(self):
         super(CausalImpact, self).__init__()
     
-    def build(self, testset=pd.DataFrame(), dataset=pd.DataFrame(), metric={'impressions':'sum'}, ranks='date',
-                markets='page', begin_data = None, roll=2, outlier=1, min_test=1, min_data=1):
+    def build(self, testset = pd.DataFrame(), dataset = pd.DataFrame(), metric = {'impressions':'sum'}, ranks = 'date',
+                markets = 'page', begin_data = None, roll = 2, outlier = 1, test_cutoff = 0.85, data_cutoff = 0.85, verbose = False):
 
         """
         Builds a pd.DataFrame() by crossing two ranked -by dateime or else- unsorted and ungrouped datasets. 
@@ -37,6 +52,8 @@ class SEOCausal(CausalImpact):
             min_data: int
                 Minimum numbers of observations required from the overall market dataset to be added to model.
                 I.e., in a dataset with 365 daily observations we would recommend (325-360) 
+            verbose: bool
+                Wethear to save the remaining test and control markets in separate objects.
                 
         Returns
         -------
@@ -62,21 +79,36 @@ class SEOCausal(CausalImpact):
         causal_input = dataset.groupby([ranks, col]).agg(metric_dict).sort_values(ranks).reset_index()
 
         test_set = causal_input[causal_input[col].isin(testset[col])]
+        causal_input = causal_input[~causal_input[col].isin(testset[col])]
 
         assert (test_set.iloc[1,:].all() != None)  & (test_set.iloc[0,:].all() != None), 'No markets match on test and data, check strings'
 
-        testcount = test_set.groupby([col]).count().sort_values(ranks, ascending=False).reset_index()
+        if test_cutoff < 1 or data_cutoff < 1:
+            causal_input = causal_input[~(causal_input[col].isin(testset[col]))]
+            
+            testcount = test_set.groupby([col]).count().sort_values(ranks, ascending=False).reset_index()
+            fullcount = causal_input.groupby([col]).count().sort_values(ranks, ascending=False).reset_index()
+            
+            max_test = int( testcount[ranks].max() * test_cutoff )
+            max_data = int( fullcount[ranks].max() * data_cutoff )
+            
+            for i in range(len(testcount)):
+                if testcount.iloc[i][ranks] >= max_test:
+                    test_set_remainer = testcount.iloc[: i,]
+                    
+            for i in range(len(fullcount)):
+                if fullcount.iloc[i][ranks] >= max_data:
+                    causal_input_remainer = fullcount.iloc[: i,]
+    
+            test_set =  test_set[test_set[col].isin(test_set_remainer[col])]
+            causal_set =  causal_input[causal_input[col].isin(causal_input_remainer[col])]
+            causal_input = pd.concat([test_set, causal_set], ignore_index = True)
+            causal_opt = causal_set.groupby([col]).count().sort_values(ranks, ascending=False).reset_index()
+            test_opt = test_set.groupby([col]).count().sort_values(ranks, ascending=False).reset_index()
 
-        assert testcount[ranks].max() >= min_test, 'min_test must be lower than the maximum number of observations in testset'
-
-        test_tops = testcount[testcount[ranks] >= min_test].reset_index() #to be expanded, same with row 106
-
-        test_set =  causal_input[causal_input[col].isin(test_tops[col])]
-        test_set = test_set.groupby([ranks, col]).agg(metric_dict).sort_values(ranks).reset_index()
-
-        test_set_clean = pd.DataFrame()
 
         if outlier < 1:
+            test_set_clean = pd.DataFrame()
             for i in test_tops[col].unique():
                 cutoff = test_set[test_set[col] == i].quantile(outlier)
                 temp = test_set[test_set[col] == i]
@@ -87,25 +119,11 @@ class SEOCausal(CausalImpact):
             causal_input = causal_input[~causal_input[col].isin(testcount[col])]
             causal_input = pd.concat([causal_input, test_set], ignore_index=True).sort_values(ranks).reset_index(drop=True)
 
-        test_items = causal_input[causal_input[col].isin(test_tops[col])]
-
-        causal_input.loc[causal_input[col].isin(test_tops[col]), col] = 'TEST'
+        causal_input.loc[causal_input[col].isin(test_set[col]), col] = 'TEST'
 
         causal_input = causal_input.groupby([ranks, col]).agg(metric_dict).sort_values(ranks).reset_index()
 
-        marketcount = causal_input.groupby([col]).count().sort_values(ranks, ascending=False).reset_index()
-
-        if marketcount[marketcount[col] == 'TEST'][ranks].max() <= min_data:
-            min_data = marketcount[marketcount[col] == 'TEST'][ranks].max()
-
-        assert marketcount[ranks].max() >= min_data, 'min_data must be lower than the maximum number of observations in dataset'    
-        assert min_test <= min_data, 'Test observations have to be equal or higher than cutoff point'
-
-        control_urls = marketcount[marketcount[ranks] >= min_data].reset_index() #to be expanded, same with row 75
-
-        causal_control = causal_input.loc[causal_input[col].isin(control_urls[col]),]
-
-        pvt_table = causal_control.pivot_table(index=ranks, columns=col, aggfunc=metric_dict).reset_index().fillna(0).set_index(ranks)
+        pvt_table = causal_input.pivot_table(index=ranks, columns=col, aggfunc=metric_dict).reset_index().fillna(0).set_index(ranks)
 
         if roll > 1:
             pvt_table = pvt_table.rolling(roll).mean()
@@ -119,8 +137,9 @@ class SEOCausal(CausalImpact):
 
         if begin_data != None:
             causal_control = causal_control[causal_control.index >= begin_data]
-            
-        return causal_control.reset_index()
+
+        if verbose == True and (test_cutoff < 1 or data_cutoff < 1):
+            return causal_control.reset_index(), test_opt, causal_opt
 
     
     def distance(self, causal_control, end_date,  col='page_', ranks='date',scaling=True):
@@ -263,15 +282,4 @@ class SEOCausal(CausalImpact):
             return ci, cibt
 
         return ci
-        
-        
-    def Rtransform(self, testset, dataset, metric,  #To do
-                  roll, nmarkets, min_test, min_data):
-        return
     
-    def fit_transform(self, int_time, start, end,  #To do,
-                    test_set, dataset, alpha, 
-                    events, seasons, btest, 
-                    standardize, testset, dataset, metric,
-                    roll, min_test, min_data)
-        return
