@@ -13,36 +13,36 @@ SEO optimization is a domain where causal inference has strong applicability. On
 
 ### Information
 
-What does the package do?
+- What does the package do?
 
 SEOCausal is an open source library developed at Builtvisible that provides a suite of uplift modeling and causal inference methods using machine learning algorithms based on recent research. 
 
 This library is designed to be quick, flexible, and effective while being tailored for SEO applications.  SEOCausal is designed to handle Google Analytics and Google Search Console data as default inputs but is modular enough to be able to ingest datasets from other sources.
 
-How does it work?
+- How does it work?
 
 The workflow to find the estimated impact after an intervention consists of three steps, each defined by its own function, as follows:
 
-Dataset building build():
+  1) Dataset building build():
 
 The first step step takes a global dataset that contains all observations for all markets under study. The global dataset does not need to be sorted or aggregated a priori, it is raw data as obtained from any source. A second dataset is also required as input; it should contain the names of the targeted test markets within the global dataset. 
 
 The output from is a properly formatted and aggregated dataset ready for market matching. All the markets under the test dataset are rolled up into a single group under the name 'TEST'. 
 
-Market matching distance():
+  2) Market matching distance():
 
 This step takes the dataset built during the previous step and finds the distance for every other market in the global dataset against the rolled up 'TEST' market, in a one-to-many fasion. By default only the top 100 best matches are retained in order to speed up the final step of the analysis.
 
-Inference fit():
+  3) Inference fit():
 
 The final step receives as input a dataset containing the 'TEST' market and a selection of 100 (as default) matched markets. It applies a causal model and returns the estimated impact from the intervention applied. It can display the results in a summary, a plot, or even a full written description depending on the attribute called, see APIs for details.
 
-What are matching markets?
+- What are matching markets?
 
 The function distances() finds the best control markets for the test market by looping through all viable candidates in a parallel fashion and then ranking by their dynamic time warping. Through this process we can find the best control markets and proceed with the selection to the inference step
 
 Dynamic time warping is a technique that finds the distance along the warping curve – instead of the raw data – where the warping curve represents the best alignment between two time series. [1]
 
-What assumptions does the model make?
+- What assumptions does the model make?
 
 As with all non-experimental approaches to causal inference, valid conclusions require strong assumptions. In the case of SEOCausal, we assume that there is a set control time series that were themselves not affected by the intervention. If they were, we might falsely under- or overestimate the true effect. Or we might falsely conclude that there was an effect even though in reality there wasn’t. The model also assumes that the relationship between covariates and the LP that underwent an intervention, as established during the pre-period, remains stable throughout the post-period.
