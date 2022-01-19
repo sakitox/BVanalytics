@@ -28,7 +28,7 @@ install_requires = [
     'tensorflow-probability >= 0.14.0',
     'matplotlib',
     'dtw-python',
-    'sklearn'
+    'sklearn',
     'tf-causalimpact'
 ]
 tests_require = [
