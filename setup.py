@@ -25,7 +25,6 @@ here = os.path.abspath(os.path.dirname(__file__))
 install_requires = [
     'jinja2',
     'pandas',
-    'tensorflow',
     'tensorflow-probability >= 0.14.0',
     'matplotlib',
     'dtw-python',
