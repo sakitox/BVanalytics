@@ -3,7 +3,7 @@ class SEOCausal(CausalImpact):
         super(CausalImpact, self).__init__()
     
     def build(self, testset=pd.DataFrame(), dataset=pd.DataFrame(), metric={'impressions':'sum'}, ranks='date',
-                col='page', begin_data = None, roll=2, outlier=1, min_test=1, min_data=1):
+                markets='page', begin_data = None, roll=2, outlier=1, min_test=1, min_data=1):
 
         """
         Builds a pd.DataFrame() by crossing two ranked -by dateime or else- unsorted and ungrouped datasets. 
@@ -47,6 +47,7 @@ class SEOCausal(CausalImpact):
             WIP
         """
 
+        col = markets
         testset.columns = testset.columns.str.lower()
         dataset.columns = dataset.columns.str.lower()
         col = col.lower()
