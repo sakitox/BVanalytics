@@ -14,4 +14,4 @@
 
 
 from SEOCausal.__version__ import __version__
-import SEOCausal
+from SEOCausal.SEOCausal import SEOCausal
