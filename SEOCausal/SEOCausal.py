@@ -141,7 +141,7 @@ class SEOCausal(CausalImpact):
         if verbose == True and (test_cutoff < 1 or data_cutoff < 1):
             return causal_control.reset_index(), test_opt, causal_opt
 
-        return causal_control
+        return causal_control.reset_index()
 
     
     def distance(self, causal_control, end_date,  col='page_', ranks='date',scaling=True):
