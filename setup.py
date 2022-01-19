@@ -74,7 +74,7 @@ extras_require = {
 packages = ['SEOCausal']
 
 _version = {}
-_version_path = os.path.join(here, 'causalimpact', '__version__.py')
+_version_path = os.path.join(here, 'src', 'SEOCausal', '__version__.py')
 
 with open(_version_path, 'r') as f:
     exec(f.read(), _version)
