@@ -24,6 +24,7 @@ import dtw
 from sklearn import preprocessing
 import logging
 import time
+logging.getLogger("tensorflow").setLevel(logging.ERROR)
 
 def build(self, testset = pd.DataFrame(), dataset = pd.DataFrame(), metric = {'impressions':'sum'}, ranks = 'date',
             markets = 'page', begin_data = None, roll = 2, outlier = 1, test_cutoff = 0.85, data_cutoff = 0.85, verbose = False):
@@ -32,7 +33,7 @@ def build(self, testset = pd.DataFrame(), dataset = pd.DataFrame(), metric = {'i
 
 
     Builds a pd.DataFrame() by crossing two ranked -by dateime or else- unsorted and ungrouped datasets. 
-    One concontains all data observations in the experiment, it can contain many observations at same rank. 
+    One contains all data observations in the experiment, it can contain many observations at same rank. 
     The second one has a list of the test markets that underwent an experiment. 
     The column names must match between the list and the markets in global data (temporary until permanent solution).
     The resulting DataFrame is ready to be matched to its internal markets, see distance().
