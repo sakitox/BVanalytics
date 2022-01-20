@@ -259,7 +259,7 @@ def fit(int_time, end, distances, metric_col, causal_data, col = 'page_', rank_c
         WIP
     """
 
-    distances = distances.append({'page':'TEST'}, ignore_index=True)
+    distances = distances.append({col:'TEST'}, ignore_index=True)
 
     pvt_longer = causal_data.merge(distances[col], how='inner', on=[col]).sort_values(rank_col).reset_index(drop=True)
     
