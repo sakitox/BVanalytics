@@ -26,7 +26,7 @@ import logging
 import time
 logging.getLogger("tensorflow").setLevel(logging.ERROR)
 
-def build(self, testset = pd.DataFrame(), dataset = pd.DataFrame(), metric = {'impressions':'sum'}, ranks = 'date',
+def build(testset = pd.DataFrame(), dataset = pd.DataFrame(), metric = {'impressions':'sum'}, ranks = 'date',
             markets = 'page', begin_data = None, roll = 2, outlier = 1, test_cutoff = 0.85, data_cutoff = 0.85, verbose = False):
     """
     
@@ -155,7 +155,7 @@ def build(self, testset = pd.DataFrame(), dataset = pd.DataFrame(), metric = {'i
     return causal_control.reset_index()
 
 
-def distance(self, causal_control, end_date,  col='page_', ranks='date',scaling=True):
+def distance(causal_control, end_date,  col='page_', ranks='date',scaling=True):
 
     """
     
@@ -279,7 +279,7 @@ def fit(int_time, end, distances,
     print('')
     print('')
     
-    ci = CausalImpact(final, pre_period, post_period, alpha=alpha, model_args = {'nseasons': events_per_season,'season_duration': seasons})
+    ci = CausalImpact(final, pre_period, post_period, alpha=alpha, model_args = {'fit_method': 'hmc', 'nseasons': events_per_season,'season_duration': seasons})
 
     print(ci.summary())
     print(ci.plot())
