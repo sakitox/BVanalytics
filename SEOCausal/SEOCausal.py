@@ -221,9 +221,11 @@ def distance(causal_control, end_date,  col='page_', ranks='date',scaling=True):
     return  final
 
 
-def fit(int_time, end, distances,
-        causal_data, alpha = 0.95, events_per_season = 1, 
+def fit(int_time, end, distances, metric_col, causal_data, col = 'page_', rank_col = 'date', 
+        alpha = 0.95, events_per_season = 1, 
         seasons = 1, btest = 0, standardize = False):
+
+
 
     """
     
@@ -261,7 +263,7 @@ def fit(int_time, end, distances,
 
     pvt_longer = causal_data.merge(distances['page'], how='inner', on=['page']).sort_values('date').reset_index(drop=True)
     
-    raw_ts = pvt_longer.pivot_table(index='date', columns='page', values='value').reset_index()
+    raw_ts = pvt_longer.pivot_table(index='date', columns='page', values=metric_col).reset_index()
 
     partition1 = raw_ts[raw_ts.date == int_time].index.values[0].item()
 
