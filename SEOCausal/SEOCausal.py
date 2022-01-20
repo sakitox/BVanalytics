@@ -261,9 +261,9 @@ def fit(int_time, end, distances, metric_col, causal_data, col = 'page_', rank_c
 
     distances = distances.append({'page':'TEST'}, ignore_index=True)
 
-    pvt_longer = causal_data.merge(distances['page'], how='inner', on=['page']).sort_values('date').reset_index(drop=True)
+    pvt_longer = causal_data.merge(distances[col], how='inner', on=[col]).sort_values(rank_col).reset_index(drop=True)
     
-    raw_ts = pvt_longer.pivot_table(index='date', columns='page', values=metric_col).reset_index()
+    raw_ts = pvt_longer.pivot_table(index=rank_col, columns=col, values=metric_col).reset_index()
 
     partition1 = raw_ts[raw_ts.date == int_time].index.values[0].item()
 
@@ -273,9 +273,9 @@ def fit(int_time, end, distances, metric_col, causal_data, col = 'page_', rank_c
     
     post_period = [partition1, partition2]
 
-    final = raw_ts.sort_values('date').reset_index(drop=True)
+    final = raw_ts.sort_values(rank_col).reset_index(drop=True)
     
-    final = final.drop(['date'], axis=1)
+    final = final.drop([rank_col], axis=1)
 
     print('Calculating Causal Impact....')
     print('')
