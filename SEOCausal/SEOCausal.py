@@ -293,7 +293,7 @@ def fit(int_time, end, distances,
         print('Calculating Backtest...')
         print('')
         print('')
-        cibt = CausalImpact(final, bt_pre_period, bt_post_period, alpha=alpha, model_args = {'method': 'hmc','nseasons': events_per_season,'season_duration': seasons})
+        cibt = CausalImpact(final, bt_pre_period, bt_post_period, alpha=alpha, model_args = {'fit_method': 'hmc','nseasons': events_per_season,'season_duration': seasons})
     
         print(cibt.summary())
         print(cibt.plot())
