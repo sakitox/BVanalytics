@@ -27,8 +27,10 @@ import time
 
 def build(self, testset = pd.DataFrame(), dataset = pd.DataFrame(), metric = {'impressions':'sum'}, ranks = 'date',
             markets = 'page', begin_data = None, roll = 2, outlier = 1, test_cutoff = 0.85, data_cutoff = 0.85, verbose = False):
-
     """
+    
+
+
     Builds a pd.DataFrame() by crossing two ranked -by dateime or else- unsorted and ungrouped datasets. 
     One concontains all data observations in the experiment, it can contain many observations at same rank. 
     The second one has a list of the test markets that underwent an experiment. 
@@ -155,6 +157,9 @@ def build(self, testset = pd.DataFrame(), dataset = pd.DataFrame(), metric = {'i
 def distance(self, causal_control, end_date,  col='page_', ranks='date',scaling=True):
 
     """
+    
+
+
     Builds a pd.DataFrame() by finding all the dynamic time warped distances of each internal market against the 'TEST' set generated using build(). 
     ----
         causal_control: pd.DataFrame()
@@ -220,6 +225,9 @@ def fit(int_time, end, distances,
         seasons = 1, btest = 0, standardize = False):
 
     """
+    
+
+
     Fits a causal impact model to the build() dataset using the controls defined by distance(), it is recommended to constrain the total markets in distance() to less than 100.
     ----
         int_time:
