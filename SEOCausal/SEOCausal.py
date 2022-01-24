@@ -74,7 +74,6 @@ def build(testset = pd.DataFrame(), dataset = pd.DataFrame(), metric = {'impress
     ------
         WIP
     """
-
     col = markets
     testset.columns = testset.columns.str.lower()
     dataset.columns = dataset.columns.str.lower()
@@ -105,7 +104,7 @@ def build(testset = pd.DataFrame(), dataset = pd.DataFrame(), metric = {'impress
         
         for i in range(len(testcount)):
             if testcount.iloc[i][ranks] >= max_test:
-                test_set_remainer = testcount.iloc[: i,]
+                test_set_remainer = testcount.iloc[: i+1,]
                 
         for i in range(len(fullcount)):
             if fullcount.iloc[i][ranks] >= max_data:
@@ -154,7 +153,6 @@ def build(testset = pd.DataFrame(), dataset = pd.DataFrame(), metric = {'impress
 
     return causal_control.reset_index()
 
-
 def distance(causal_control, end_date,  col='page_', ranks='date',scaling=True):
 
     """
@@ -185,7 +183,6 @@ def distance(causal_control, end_date,  col='page_', ranks='date',scaling=True):
         WIP
     """
 
-    
     causal_control = causal_control[causal_control[ranks] < end_date]
     
     total_time = 0
@@ -197,7 +194,9 @@ def distance(causal_control, end_date,  col='page_', ranks='date',scaling=True):
         distances = {}
         temp = causal_control[[col, j]]
         for i in temp[col].unique():
-            distances[i] = dtw.dtw(causal_control[causal_control[col] == 'TEST'][j], causal_control[causal_control[col] == i][j],open_end=True).distance
+            distances[j] = dtw.dtw(causal_control[causal_control[col] == 'TEST'][j], causal_control[causal_control[col] == i][j], 
+                                   window_type='sakoechiba',
+                                        window_args={'window_size': 1} ).distance
         final[j] = pd.DataFrame.from_dict(distances, orient='index', columns=['dist']).sort_values('dist', ascending=True)[1:].reset_index()
         time_taken = time.time() - t_start_0
         total_time += time_taken
@@ -281,7 +280,7 @@ def fit(int_time, end, distances, metric_col, causal_data, col = 'page_', rank_c
     print('')
     print('')
     
-    ci = CausalImpact(final, pre_period, post_period, alpha=alpha, model_args = {'fit_method': 'hmc', 'nseasons': events_per_season,'season_duration': seasons})
+    ci = CausalImpact(final, pre_period, post_period, alpha=alpha, model_args = {'fit_method': 'vi', 'nseasons': events_per_season,'season_duration': seasons})
 
     print(ci.summary())
     print(ci.plot())
@@ -295,7 +294,7 @@ def fit(int_time, end, distances, metric_col, causal_data, col = 'page_', rank_c
         print('Calculating Backtest...')
         print('')
         print('')
-        cibt = CausalImpact(final, bt_pre_period, bt_post_period, alpha=alpha, model_args = {'fit_method': 'hmc','nseasons': events_per_season,'season_duration': seasons})
+        cibt = CausalImpact(final, bt_pre_period, bt_post_period, alpha=alpha, model_args = {'fit_method': 'vi','nseasons': events_per_season,'season_duration': seasons})
     
         print(cibt.summary())
         print(cibt.plot())
