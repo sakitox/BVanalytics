@@ -194,10 +194,9 @@ def distance(causal_control, end_date,  col='page_', ranks='date',scaling=True):
         distances = {}
         temp = causal_control[[col, j]]
         for i in temp[col].unique():
-            distances[j] = dtw.dtw(causal_control[causal_control[col] == 'TEST'][j], causal_control[causal_control[col] == i][j], 
-                                   window_type='sakoechiba',
-                                        window_args={'window_size': 1} ).distance
+            distances[i] = dtw.dtw(causal_control[causal_control[col] == 'TEST'][j], causal_control[causal_control[col] == i][j]).distance
         final[j] = pd.DataFrame.from_dict(distances, orient='index', columns=['dist']).sort_values('dist', ascending=True)[1:].reset_index()
+        final[j] = final[j].rename({'index': col}, axis = 1)
         time_taken = time.time() - t_start_0
         total_time += time_taken
         print(f"Metric {j} completed. Time taken: {time_taken / 60:0.2f} minutes")
@@ -272,9 +271,11 @@ def fit(int_time, end, distances, metric_col, causal_data, col = 'page_', rank_c
     
     post_period = [partition1, partition2]
 
-    final = raw_ts.sort_values(rank_col).reset_index(drop=True)
+    final = raw_ts.sort_values(rank_col).reset_index(drop=True).fillna(0)
     
     final = final.drop([rank_col], axis=1)
+
+    assert final.columns[0] == 'TEST', 'Test is not the first column'
 
     print('Calculating Causal Impact....')
     print('')
