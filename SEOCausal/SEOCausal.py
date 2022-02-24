@@ -275,6 +275,12 @@ def fit(int_time, end, distances, metric_col, causal_data, col = 'page_', rank_c
     
     final = final.drop([rank_col], axis=1)
 
+    ord_cols = ['TEST']
+
+    ord_cols = ord_cols + final.columns[final.columns != 'TEST'].tolist()
+
+    final = final[ord_cols]
+
     assert final.columns[0] == 'TEST', 'Test is not the first column'
 
     print('Calculating Causal Impact....')
